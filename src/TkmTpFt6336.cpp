@@ -4,7 +4,7 @@
 TkmTpFt6336 *TkmTpFt6336::instance = NULL;
 static const uint8_t FT5206_TPX_TBL[5] = {FT6336G_TP1_REG, FT6336G_TP2_REG, FT6336G_TP3_REG, FT6336G_TP4_REG, FT6336G_TP5_REG};
 
-TkmTpFt6336::TkmTpFt6336(TwoWire* i2c, uint8_t rstPin, uint16_t width, uint16_t height)
+TkmTpFt6336::TkmTpFt6336(TwoWire *i2c, uint8_t rstPin, uint16_t width, uint16_t height)
     : LvglInputAdapter(i2c, FT6336G_ADDR), rstPin(rstPin), width(width), height(height)
 {
   // Release the origin instance
@@ -29,6 +29,72 @@ void TkmTpFt6336::reset()
   digitalWrite(rstPin, 1);
 }
 
+// bool TkmTpFt6336::init()
+// {
+//   // reset();
+//   delay(50);
+
+//   uint8_t reg = 0;
+//   uint8_t addr = FTS_REG_CHIP_ID;
+//   int i = 0;
+//   //读取版本号
+//   // reg = I2C_READ_REG(FTS_REG_CHIP_ID);
+//   // logDebug("TP ID:%x\r\n", reg);
+//   while(reg == 0 && i++<20){
+//     if(i2cdevice->write_then_read(&addr, sizeof(addr), &reg, 1, true)){
+//       logDebug("TP ID:%x\r\n", reg);
+//     } else {
+//       logDebug("Read TP I2C wrong\r\n");
+//       // return false;
+//     }
+//     delay(10);
+//   }
+//   // if ((data[0] == 0X30 && data[1] == 0X03) || data[1] == 0X01 || data[1] == 0X02)
+//   // {
+//   //   logInfo("TP ID:%x\r\n", ((uint16_t)data[0] << 8) + data[1]);
+//   //   return false;
+//   // }
+//   if(reg>0){
+//     inited = true;
+//   }
+//   return true;
+// }
+
+// bool TkmTpFt6336::init()
+// {
+//   // reset();
+//   delay(50);
+
+//   uint8_t reg = 0;
+//   //正常操作模式
+//   I2C_WRITE_REG(FT6336G_DEVIDE_MODE, reg);
+//   //查询模式
+//   I2C_WRITE_REG(FT6336G_ID_G_MODE, reg);
+//   //触摸有效值，越小越灵敏
+//   reg = 22;
+//   I2C_WRITE_REG(FT6336G_ID_G_THGROUP, reg);
+//   //激活周期
+//   reg = 12;
+//   I2C_WRITE_REG(FT6336G_ID_G_PERIODACTIVE, reg);
+//   uint8_t addr = FT6336G_ID_G_LIB_VERSION;
+//   uint8_t data[2];
+//   //读取版本号
+//   for(int i=0;i<=0xc0;i++)
+//   if(i2cdevice->write_then_read(&addr, sizeof(addr), data, 2, true)){
+//     logDebug("i 0x%x TP ID:%x\r\n", i, ((uint16_t)data[0] << 8) + data[1]);
+//   } else {
+//     logDebug("Read TP I2C wrong\r\n");
+//     return false;
+//   }
+//   if ((data[0] == 0X30 && data[1] == 0X03) || data[1] == 0X01 || data[1] == 0X02)
+//   {
+//     logInfo("TP ID:%x\r\n", ((uint16_t)data[0] << 8) + data[1]);
+//     return false;
+//   }
+//   inited = true;
+//   return true;
+// }
+
 bool TkmTpFt6336::init()
 {
   // reset();
@@ -45,12 +111,14 @@ bool TkmTpFt6336::init()
   //激活周期
   reg = 12;
   I2C_WRITE_REG(FT6336G_ID_G_PERIODACTIVE, reg);
-  uint8_t addr = FT6336G_ID_G_LIB_VERSION;
   uint8_t data[2];
   //读取版本号
-  if(i2cdevice->write_then_read(&addr, sizeof(addr), data, 2, true)){
-    logDebug("TP ID:%x\r\n", ((uint16_t)data[0] << 8) + data[1]);
-  } else {
+  if (I2C_READ_ARRAY(FT6336G_ID_G_LIB_VERSION, data))
+  {
+    logDebug("TP ID:%x\r\n", (((uint16_t)data[0]) << 8) + data[1]);
+  }
+  else
+  {
     logDebug("Read TP I2C wrong\r\n");
     return false;
   }
@@ -59,11 +127,14 @@ bool TkmTpFt6336::init()
     logInfo("TP ID:%x\r\n", ((uint16_t)data[0] << 8) + data[1]);
     return false;
   }
+  inited = true;
   return true;
 }
 
-void TkmTpFt6336::read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data){
-  if(getInstance()!=NULL){
+void TkmTpFt6336::read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
+{
+  if (getInstance() != NULL)
+  {
     getInstance()->_read(indev_driver, data);
   }
 }
@@ -74,55 +145,72 @@ void TkmTpFt6336::_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
   uint8_t buf[4];
   uint8_t res = 0;
   uint8_t temp;
-  uint8_t x[6], y[6];
+  static uint16_t x[6], y[6];
   static uint8_t filter = 0;
   static uint8_t mode = 0;
-  filter++;
+  if (!inited)
+  {
+    // 尚未成功初始化
+    return;
+  }
   //空闲时降低读取频率
   if ((filter++ % READ_INTERVAL) == 0 || filter < READ_INTERVAL)
   {
     //读取触摸点的状态
-    mode = I2C_READ_REG(FT6336G_REG_NUM_FINGER);
-    if(filter%100 == 0)
-      logDebug("TP Mode :%x\r\n", mode);
-    //读到些结果
-    if ((mode & 0XF) && ((mode & 0XF) < 6))
+    if (I2C_READ_REG(FT6336G_REG_NUM_FINGER, mode))
     {
-      //将点的个数转换为1的位数
-      temp = 0XFF << (mode & 0XF);
-      temp = ~temp;
-      for (uint8_t i = 0; i < 5; i++)
+      if ((filter - 1) % 100 == 0)
+        logDebug("TP Mode :%x\r\n", mode);
+      //读到些结果
+      if ((mode & 0XF) && ((mode & 0XF) < 6))
       {
-        //该点按下
-        if (temp & (1 << i))
+        //将点的个数转换为1的位数
+        temp = 0XFF << (mode & 0XF);
+        temp = ~temp;
+        for (uint8_t i = 0; i < 5; i++)
         {
-          //读取该点坐标
-          i2cdevice->write_then_read(&FT5206_TPX_TBL[i], sizeof(FT5206_TPX_TBL[i]), buf, 4, true);
-          if (width >= height)
+          //该点按下
+          if (temp & (1 << i))
           {
-            y[i] = ((uint16_t)(buf[0] & 0X0F) << 8) + buf[1];
-            x[i] = ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
-          }
-          else
-          {
-            x[i] = width - (((uint16_t)(buf[0] & 0X0F) << 8) + buf[1]);
-            y[i] = ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
-          }
-          if ((buf[0] & 0XF0) != 0X80)
-          {
-            //不是contact事件，无效
-            x[i] = y[i] = 0;
+            //读取该点坐标
+            if (I2C_READ_ARRAY(FT5206_TPX_TBL[i], buf))
+            {
+              if (width >= height)
+              {
+                y[i] = ((uint16_t)(buf[0] & 0X0F) << 8) + buf[1];
+                x[i] = ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
+              }
+              else
+              {
+                // x[i] = width - (((uint16_t)(buf[0] & 0X0F) << 8) + buf[1]);
+                x[i] = (((uint16_t)(buf[0] & 0X0F) << 8) + buf[1]);
+                y[i] = ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
+              }
+              if ((buf[0] & 0XF0) != 0X80)
+              {
+                //不是contact事件，无效
+                x[i] = y[i] = 0;
+              }
+            }
+            else
+            {
+              logErr("Read TP point data error for mode %d in index %d\r\n", mode, i);
+            }
           }
         }
+        res = 1;
+        if (x[0] == 0 && y[0] == 0)
+        {
+          //无效数据
+          mode = 0;
+        }
+        //重置扫描标志
+        filter = 0;
       }
-      res = 1;
-      if (x[0] == 0 && y[0] == 0)
-      {
-        //无效数据
-        mode = 0;
-      }
-      //重置扫描标志
-      filter = 0;
+    }
+    else
+    {
+      logErr("Read TP data error\r\n");
     }
   }
   if ((mode & 0X3F) == 0)
@@ -135,9 +223,9 @@ void TkmTpFt6336::_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 
     /*Set the coordinates*/
     data->point.x = x[0];
-      logDebug("x :%x\r\n", x[0]);
+    logDebug("x :%d\r\n", x[0]);
     data->point.y = y[0];
-      logDebug("y :%x\r\n", y[0]);
+    logDebug("y :%d\r\n", y[0]);
   }
   if (filter >= 210)
   {

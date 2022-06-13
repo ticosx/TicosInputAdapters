@@ -20,6 +20,7 @@
 #define FT6336G_ID_G_MODE       0xA4
 #define FT6336G_ID_G_THGROUP    0x80
 #define FT6336G_ID_G_PERIODACTIVE 0x88
+#define FTS_REG_CHIP_ID         0xA3
 
 #define READ_INTERVAL   10 
 
@@ -45,5 +46,6 @@ class TkmTpFt6336 : public LvglInputAdapter {
 
   private:
     void _read(lv_indev_drv_t *, lv_indev_data_t *);
+    bool inited = false;
 };
 #endif // TKM_TP_FT6336_h
