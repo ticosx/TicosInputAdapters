@@ -22,7 +22,7 @@
 #define FT6336G_ID_G_PERIODACTIVE 0x88
 #define FTS_REG_CHIP_ID         0xA3
 
-#define READ_INTERVAL   10 
+#define READ_INTERVAL   2
 
 /*!
  * @brief FT6336G 触摸屏

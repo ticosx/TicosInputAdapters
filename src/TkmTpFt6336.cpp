@@ -29,72 +29,6 @@ void TkmTpFt6336::reset()
   digitalWrite(rstPin, 1);
 }
 
-// bool TkmTpFt6336::init()
-// {
-//   // reset();
-//   delay(50);
-
-//   uint8_t reg = 0;
-//   uint8_t addr = FTS_REG_CHIP_ID;
-//   int i = 0;
-//   //读取版本号
-//   // reg = I2C_READ_REG(FTS_REG_CHIP_ID);
-//   // logDebug("TP ID:%x\r\n", reg);
-//   while(reg == 0 && i++<20){
-//     if(i2cdevice->write_then_read(&addr, sizeof(addr), &reg, 1, true)){
-//       logDebug("TP ID:%x\r\n", reg);
-//     } else {
-//       logDebug("Read TP I2C wrong\r\n");
-//       // return false;
-//     }
-//     delay(10);
-//   }
-//   // if ((data[0] == 0X30 && data[1] == 0X03) || data[1] == 0X01 || data[1] == 0X02)
-//   // {
-//   //   logInfo("TP ID:%x\r\n", ((uint16_t)data[0] << 8) + data[1]);
-//   //   return false;
-//   // }
-//   if(reg>0){
-//     inited = true;
-//   }
-//   return true;
-// }
-
-// bool TkmTpFt6336::init()
-// {
-//   // reset();
-//   delay(50);
-
-//   uint8_t reg = 0;
-//   //正常操作模式
-//   I2C_WRITE_REG(FT6336G_DEVIDE_MODE, reg);
-//   //查询模式
-//   I2C_WRITE_REG(FT6336G_ID_G_MODE, reg);
-//   //触摸有效值，越小越灵敏
-//   reg = 22;
-//   I2C_WRITE_REG(FT6336G_ID_G_THGROUP, reg);
-//   //激活周期
-//   reg = 12;
-//   I2C_WRITE_REG(FT6336G_ID_G_PERIODACTIVE, reg);
-//   uint8_t addr = FT6336G_ID_G_LIB_VERSION;
-//   uint8_t data[2];
-//   //读取版本号
-//   for(int i=0;i<=0xc0;i++)
-//   if(i2cdevice->write_then_read(&addr, sizeof(addr), data, 2, true)){
-//     logDebug("i 0x%x TP ID:%x\r\n", i, ((uint16_t)data[0] << 8) + data[1]);
-//   } else {
-//     logDebug("Read TP I2C wrong\r\n");
-//     return false;
-//   }
-//   if ((data[0] == 0X30 && data[1] == 0X03) || data[1] == 0X01 || data[1] == 0X02)
-//   {
-//     logInfo("TP ID:%x\r\n", ((uint16_t)data[0] << 8) + data[1]);
-//     return false;
-//   }
-//   inited = true;
-//   return true;
-// }
-
 bool TkmTpFt6336::init()
 {
   // reset();
@@ -113,20 +47,21 @@ bool TkmTpFt6336::init()
   I2C_WRITE_REG(FT6336G_ID_G_PERIODACTIVE, reg);
   uint8_t data[2];
   //读取版本号
+  // TODO: 现在读不到判断 TP 的有意义的值，考虑调整
   if (I2C_READ_ARRAY(FT6336G_ID_G_LIB_VERSION, data))
   {
-    logDebug("TP ID:%x\r\n", (((uint16_t)data[0]) << 8) + data[1]);
+    logInfo("TP ID:%x\r\n", (((uint16_t)data[0]) << 8) + data[1]);
   }
   else
   {
-    logDebug("Read TP I2C wrong\r\n");
+    logErr("Read TP I2C wrong\r\n");
     return false;
   }
-  if ((data[0] == 0X30 && data[1] == 0X03) || data[1] == 0X01 || data[1] == 0X02)
-  {
-    logInfo("TP ID:%x\r\n", ((uint16_t)data[0] << 8) + data[1]);
-    return false;
-  }
+  // if ((data[0] == 0X30 && data[1] == 0X03) || data[1] == 0X01 || data[1] == 0X02)
+  // {
+  //   logErr("TP ID:%x\r\n", ((uint16_t)data[0] << 8) + data[1]);
+  //   return false;
+  // }
   inited = true;
   return true;
 }
@@ -159,8 +94,6 @@ void TkmTpFt6336::_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
     //读取触摸点的状态
     if (I2C_READ_REG(FT6336G_REG_NUM_FINGER, mode))
     {
-      if ((filter - 1) % 100 == 0)
-        logDebug("TP Mode :%x\r\n", mode);
       //读到些结果
       if ((mode & 0XF) && ((mode & 0XF) < 6))
       {
@@ -178,6 +111,10 @@ void TkmTpFt6336::_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
               if (width >= height)
               {
                 y[i] = ((uint16_t)(buf[0] & 0X0F) << 8) + buf[1];
+                if(y[i]>=height){
+                  y[i] = height - 1;
+                }
+                y[i] = height - 1 - y[i];
                 x[i] = ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
               }
               else
@@ -223,12 +160,12 @@ void TkmTpFt6336::_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 
     /*Set the coordinates*/
     data->point.x = x[0];
-    logDebug("x :%d\r\n", x[0]);
+    logVerbose("x :%d\r\n", x[0]);
     data->point.y = y[0];
-    logDebug("y :%d\r\n", y[0]);
+    logVerbose("y :%d\r\n", y[0]);
   }
-  if (filter >= 210)
+  if (filter >= 200)
   {
-    filter = 10;
+    filter = READ_INTERVAL;
   }
 }
