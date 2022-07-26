@@ -1,6 +1,7 @@
 #ifndef TKM_TP_FT6336_h
 #define TKM_TP_FT6336_h
 
+#include "lv_conf.h"
 #include <Arduino.h>
 #include "lvgl.h"
 #include "LvglInputAdapter.h"
