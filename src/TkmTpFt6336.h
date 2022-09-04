@@ -35,12 +35,14 @@ class TkmTpFt6336 : public LvglInputAdapter {
     static TkmTpFt6336* getInstance() {return instance;};
     bool init();
     void reset();
+    void setRotation(uint8_t rotation);
 
   protected:
     static TkmTpFt6336* instance;
     static void read(lv_indev_drv_t *, lv_indev_data_t *);
 
     uint8_t rstPin;
+    uint8_t rotation;
     uint16_t width;
     uint16_t height;
 

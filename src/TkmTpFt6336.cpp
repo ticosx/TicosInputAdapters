@@ -29,6 +29,15 @@ void TkmTpFt6336::reset()
   digitalWrite(rstPin, 1);
 }
 
+/**
+ * @brief 设置触摸屏旋转方向
+ * 
+ * @param rotation 0-7
+ */
+void TkmTpFt6336::setRotation(uint8_t rotation){
+  this->rotation = rotation;
+}
+
 bool TkmTpFt6336::init()
 {
   // reset();
@@ -88,6 +97,11 @@ void TkmTpFt6336::_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
     // 尚未成功初始化
     return;
   }
+  int dir = 0;
+  if(rotation>=4){
+    dir = 1;
+  }
+  int rot_mode = rotation % 4;
   //空闲时降低读取频率
   if ((filter++ % READ_INTERVAL) == 0 || filter < READ_INTERVAL)
   {
@@ -108,20 +122,31 @@ void TkmTpFt6336::_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
             //读取该点坐标
             if (I2C_READ_ARRAY(FT5206_TPX_TBL[i], buf))
             {
-              if (width >= height)
-              {
-                y[i] = ((uint16_t)(buf[0] & 0X0F) << 8) + buf[1];
-                if(y[i]>=height){
-                  y[i] = height - 1;
-                }
-                y[i] = height - 1 - y[i];
-                x[i] = ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
-              }
-              else
-              {
-                // x[i] = width - (((uint16_t)(buf[0] & 0X0F) << 8) + buf[1]);
+              if(dir){
                 x[i] = (((uint16_t)(buf[0] & 0X0F) << 8) + buf[1]);
                 y[i] = ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
+              } else {
+                x[i] = ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
+                y[i] = (((uint16_t)(buf[0] & 0X0F) << 8) + buf[1]);
+              }
+              switch(rot_mode){
+                case 0:
+                  //Do nothing
+                  break;
+                case 1:
+                  //Revert x
+                  x[i] = width - 1 - (((uint16_t)(buf[0] & 0X0F) << 8) + buf[1]);
+                  break;
+                case 2:
+                  //Revert y
+                  y[i] = height - 1 - ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
+                  break;
+                case 3:
+                  //Revert x & y
+                  x[i] = width - 1 - (((uint16_t)(buf[0] & 0X0F) << 8) + buf[1]);
+                  y[i] = height - 1 - ((uint16_t)(buf[2] & 0X0F) << 8) + buf[3];
+                  break;
+
               }
               if ((buf[0] & 0XF0) != 0X80)
               {
